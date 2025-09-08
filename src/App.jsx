@@ -1,6 +1,6 @@
 import Sidebar from "./components/AppLayout/Sidebar";
 import Navbar from "./components/AppLayout/Navbar";
-
+import GraphVisualizer from "./components/GraphVisualizer/GraphVisualizer";
 
 export default function App() {
   return (
@@ -12,7 +12,7 @@ export default function App() {
           <Navbar />
 
           <main className="p-4">
-            TODO
+            <GraphVisualizer />
           </main>
         </div>
         <Sidebar />
