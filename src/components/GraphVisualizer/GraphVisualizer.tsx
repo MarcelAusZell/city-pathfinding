@@ -84,7 +84,7 @@ export default function GraphVisualizer() {
       for (const [v] of neighbors) {
         if (visitedRef.current[v]) {
           const a = nodes[u], b = nodes[v];
-          processedEdgesLayer.appendChild(drawEdge(a, b, "blue", 1));
+          processedEdgesLayer.appendChild(drawEdge(a, b, "blue", 2));
         }
       }
     }
