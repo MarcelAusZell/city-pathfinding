@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from "react";
 import { initializeDijkstra, getRandomNode, dijkstraOneStep } from "../Algorithms/Dijkstra";
 import { drawNode, drawEdge } from "./drawHelpers";
+import { useMap } from "../../stores/mapStore";
 
 const CHUNK_SIZE = 10;
 
@@ -14,12 +15,13 @@ export default function GraphVisualizer() {
 
   const nodeElsRef = useRef<Record<string, SVGCircleElement>>({});
   const [graph, setGraph] = useState<any>(null);
+  const { map, setMap } = useMap();
 
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
     (async () => {
-      const res = await fetch("Aachen, Germany.json");
+      const res = await fetch(map);
       const raw = await res.json();
       const width = svg.clientWidth;
       const height = svg.clientHeight;
@@ -27,7 +29,7 @@ export default function GraphVisualizer() {
       svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
       setGraph(normalized);
     })();
-  }, []);
+  }, [map]);
 
   useEffect(() => {
     if (!graph || !svgRef.current) return;
