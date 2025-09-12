@@ -1,95 +1,144 @@
+import { useRef, useEffect, useState } from "react";
+import { initializeDijkstra, getRandomNode, dijkstraOneStep } from "../Algorithms/Dijkstra";
+import { drawNode, drawEdge } from "./drawHelpers";
 
-import { useRef } from "react";
-import { useEffect, useState } from "react";
+const CHUNK_SIZE = 10;
 
 export default function GraphVisualizer() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [graph, setGraph] = useState(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const distancesRef = useRef<Record<string, number>>({});
+  const predecessorsRef = useRef<Record<string, string | undefined>>({});
+  const pqRef = useRef<Record<string, any>>({});
+  const visitedRef = useRef<Record<string, boolean>>({});
+  const animRef = useRef<number | null>(null);
+
+  const nodeElsRef = useRef<Record<string, SVGCircleElement>>({});
+  const [graph, setGraph] = useState<any>(null);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
+    const svg = svgRef.current;
+    if (!svg) return;
     (async () => {
-      const res = await fetch("aachen.json");
-      const rawCoordinates = await res.json();
-      const normalizedCoordinates = normalizeGraphToCanvas(rawCoordinates, canvas.width, canvas.height);
-      setGraph(normalizedCoordinates);
+      const res = await fetch("Aachen, Germany.json");
+      const raw = await res.json();
+      const width = svg.clientWidth;
+      const height = svg.clientHeight;
+      const normalized = normalizeGraphToCanvas(raw, width, height);
+      svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+      setGraph(normalized);
     })();
   }, []);
 
   useEffect(() => {
-    if (!graph) return;
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!ctx || !canvas) return;
+    if (!graph || !svgRef.current) return;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const svg = svgRef.current;
+    const edgesLayer = svg.querySelector("#edges") as SVGGElement;
+    const processedEdgesLayer = svg.querySelector("#processedEdges") as SVGGElement;
+    const nodesLayer = svg.querySelector("#nodes") as SVGGElement;
+
     const nodes = graph.nodes;
     const edges = graph.edges;
-    for (const edgeId in edges) {
-      const { u, v, ...rest } = edges[edgeId];
-      displayEdge(ctx, nodes[u], nodes[v]);
+    const sourceNode = getRandomNode(graph);
+
+    visitedRef.current = Object.fromEntries(Object.keys(nodes).map(k => [k, false])) as Record<string, boolean>;
+    distancesRef.current = {};
+    predecessorsRef.current = {};
+    pqRef.current = {};
+    nodeElsRef.current = {};
+
+    initializeDijkstra(graph, sourceNode, distancesRef.current, predecessorsRef.current, pqRef.current);
+
+    function clearLayer(layer: SVGGElement) {
+      while (layer.firstChild) layer.removeChild(layer.firstChild);
     }
-    for (const nodeId in nodes) {
-      const { x, y } = nodes[nodeId];
-      displayNode(ctx, x, y);
+
+    function drawMap() {
+      clearLayer(edgesLayer);
+      clearLayer(nodesLayer);
+      clearLayer(processedEdgesLayer);
+
+      for (const edgeId in edges) {
+        const { u, v } = edges[edgeId];
+        const a = nodes[u], b = nodes[v];
+        edgesLayer.appendChild(drawEdge(a, b, "lightgray", 2));
+      }
+
+      for (const nodeId in nodes) {
+        const { x, y } = nodes[nodeId];
+        const el = drawNode(x, y, 3, "lightgray");
+        nodeElsRef.current[nodeId] = el;
+        nodesLayer.appendChild(el);
+      }
     }
+
+    function drawProcessed(u: string) {
+      const nodeEl = nodeElsRef.current[u];
+      if (nodeEl) nodeEl.setAttribute("fill", "blue");
+
+      const neighbors = graph.adjacencies?.[u];
+      if (!neighbors) return;
+
+      for (const [v] of neighbors) {
+        if (visitedRef.current[v]) {
+          const a = nodes[u], b = nodes[v];
+          processedEdgesLayer.appendChild(drawEdge(a, b, "blue", 1));
+        }
+      }
+    }
+
+    function renderChunk() {
+      for (let i = 0; i < CHUNK_SIZE; i++) {
+        const u = dijkstraOneStep(graph, sourceNode, distancesRef.current, predecessorsRef.current, pqRef.current);
+        if (!u) break;
+        if (!visitedRef.current[u]) {
+          visitedRef.current[u] = true;
+          drawProcessed(u);
+        }
+      }
+      const notFinished = Object.keys(pqRef.current).length > 0;
+      animRef.current = notFinished ? requestAnimationFrame(renderChunk) : null;
+    }
+
+    drawMap();
+    animRef.current = requestAnimationFrame(renderChunk);
+
+    return () => {
+      if (animRef.current !== null) cancelAnimationFrame(animRef.current);
+      animRef.current = null;
+    };
   }, [graph]);
 
+
+
   function normalizeGraphToCanvas(graph: any, width: number, height: number) {
-    const nodes = graph.nodes ?? graph["nodes"];
-    const vals = Object.values(nodes);
-
-    const minX = Math.min(...vals.map((n: any) => n.x));
-    const maxX = Math.max(...vals.map((n: any) => n.x));
-    const minY = Math.min(...vals.map((n: any) => n.y));
-    const maxY = Math.max(...vals.map((n: any) => n.y));
-
+    const nodes = graph.nodes;
+    const minX = Math.min(...nodes.map((n: any) => n.x));
+    const maxX = Math.max(...nodes.map((n: any) => n.x));
+    const minY = Math.min(...nodes.map((n: any) => n.y));
+    const maxY = Math.max(...nodes.map((n: any) => n.y));
     const scale = Math.min(width / (maxX - minX), height / (maxY - minY));
-
-    // Object.entries (Object => array)
-    // .map (transform coords)
-    // Object.fromEntries (array => Object)
     const normNodes = Object.fromEntries(
-      Object.entries(nodes).map(([id, node]: [string, any]) => {
-        const x = (node.x - minX) * scale;
-        const y = height - (node.y - minY) * scale;
-        return [id, { x, y }];
+      nodes.map((n: any) => {
+        const x = (n.x - minX) * scale;
+        const y = height - (n.y - minY) * scale;
+        return [n.id, { x, y }];
       })
     );
-
     return { ...graph, nodes: normNodes };
-  }
-
-  function displayNode(ctx: CanvasRenderingContext2D, nodeX: number, nodeY: number) {
-    ctx.beginPath();
-    ctx.arc(nodeX, nodeY, 2, 0, Math.PI * 2);
-    ctx.fillStyle = "black";
-    ctx.fill();
-  }
-
-  function displayEdge(ctx: CanvasRenderingContext2D, nodeA, nodeB) {
-    ctx.beginPath();
-    ctx.moveTo(nodeA.x, nodeA.y);
-    ctx.lineTo(nodeB.x, nodeB.y);
-    ctx.strokeStyle = "gray"
-    ctx.lineWidth = 1;
-    ctx.stroke();
   }
 
   return (
     <>
-      {!graph && <span className="loading loading-spinner"></span>
-      }
+      {!graph && <span>Loading...</span>}
 
-      <canvas
-        ref={canvasRef}
-        width={850}
-        height={850}
-        style={{ width: 850, height: 850, imageRendering: "crisp-edges" }}
-      />
+      <svg ref={svgRef} width="90vh" height="90vh">
+        <g id="edges" />
+        <g id="processedEdges" />
+        <g id="nodes" />
+      </svg>
     </>
   );
-
 }
+
+
