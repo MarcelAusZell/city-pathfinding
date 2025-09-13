@@ -4,7 +4,7 @@ import { drawNode, drawEdge } from "./drawHelpers";
 import { useMap } from "../../stores/mapStore";
 import { useToolMode } from "../../stores/toolMode";
 
-const CHUNK_SIZE = 1;
+const CHUNK_SIZE = 10;
 
 export default function GraphVisualizer() {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -63,8 +63,8 @@ export default function GraphVisualizer() {
       const el = drawNode(x, y, 3, "var(--color-neutral-content)");
       // 5) click handler: support both modes
       el.addEventListener("click", () => {
-        const currentMode = modeRef.current;            
-        console.log("node click:", id, "mode:", currentMode); 
+        const currentMode = modeRef.current;
+        console.log("node click:", id, "mode:", currentMode);
 
         if (currentMode === "addSource") {
           resetDijkstraStates(graph);
@@ -130,6 +130,19 @@ export default function GraphVisualizer() {
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
+
+    stopAnimation();
+    distancesRef.current = {};
+    predecessorsRef.current = {};
+    pqRef.current = {};
+    visitedRef.current = {};
+    setSourceNode(undefined);
+    setSinkNode(undefined);
+
+    svg.querySelector("#edges")?.replaceChildren();
+    svg.querySelector("#processedEdges")?.replaceChildren();
+    svg.querySelector("#nodes")?.replaceChildren();
+
     (async () => {
       const res = await fetch(map);
       const raw = await res.json();
@@ -138,16 +151,22 @@ export default function GraphVisualizer() {
       svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
       setGraph(normalizeGraphToCanvas(raw, width, height));
     })();
+
     return stopAnimation;
   }, [map]);
+
 
   // 2) Draw static graph once it's available
   useEffect(() => {
     if (!graph || !svgRef.current) return;
+
     drawGraph(graph);
-    stopAnimation();
+    stopAnimation();                
+    resetDijkstraStates(graph); 
     setSourceNode(undefined);
+    setSinkNode(undefined);
   }, [graph]);
+
 
   // 3) Run Dijkstra after user picks a source
   useEffect(() => {
@@ -177,12 +196,15 @@ export default function GraphVisualizer() {
           drawProcessed(graph, u);
         }
       }
-      const notFinished = Object.keys(pqRef.current).length > 0;
-      animRef.current = notFinished ? requestAnimationFrame(renderChunk) : null;
+      const pqEmpty = Object.keys(pqRef.current).length == 0;
+      const sinkReached = visitedRef.current[sinkNode];
+      const shouldContinue = !pqEmpty && !sinkReached;
+      animRef.current = shouldContinue ? requestAnimationFrame(renderChunk) : null;
     };
 
     stopAnimation();
     animRef.current = requestAnimationFrame(renderChunk);
+
     return stopAnimation;
   }, [graph, sourceNode, sinkNode]);
 
