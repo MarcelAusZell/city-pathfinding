@@ -21,7 +21,7 @@ export default function Sidebar(): React.JSX.Element {
         {cities.map((city) => (
           <li key={city} >
             <button
-              className={`rounded-2xl border-2 mb-3 p-6 border-base-content/10 text-md ${map === city ? "bg-base-content/20 text-primary" : "bg-base-300/70"
+              className={`rounded-2xl mb-1 p-3  text-md ${map === city ? "bg-base-content/20 text-primary" : ""
                 }`}
               onClick={() => setMap(city)}
             >
@@ -29,15 +29,16 @@ export default function Sidebar(): React.JSX.Element {
             </button>
           </li>
         ))}
+
         <div className="flex-1" />
 
-        <div className="join flex justify-center">
-          <button className={`btn join-item border-2 border-base-content/10 bg-base-200 ${mode == "addSource" ? "bg-base-content/20 text-primary" : "bg-base-300/70"}`} onClick={() => setMode("addSource")}>Add Source
+        <div className="join justify-center">
+          <button className={`btn join-item ${mode == "addSource" ? "bg-base-content/20 text-primary" : "bg-base-300/70"}`} onClick={() => setMode("addSource")}>Add Source
             <svg viewBox="0 0 10 10" width={10}>
               <circle cx="5" cy="5" r={5} fill="red" />
             </svg>
           </button>
-          <button className={`btn join-item border-2 border-base-content/10 bg-base-200 ${mode == "addSink" ? "bg-base-content/20 text-primary" : "bg-base-300/70"}`} onClick={() => setMode("addSink")}>Add Sink
+          <button className={`btn join-item ${mode == "addSink" ? "bg-base-content/20 text-primary" : "bg-base-300/70"}`} onClick={() => setMode("addSink")}>Add Sink
             <svg viewBox="0 0 10 10" width={10}>
               <circle cx="5" cy="5" r={5} fill="green" />
             </svg>
