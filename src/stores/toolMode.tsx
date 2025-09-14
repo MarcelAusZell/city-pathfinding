@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 
-type ToolMode = "idle" | "addSource" | "addSink";
+type ToolMode = "addSource" | "addSink";
 type ToolModeCtx = {
   mode: ToolMode;
   setMode: React.Dispatch<React.SetStateAction<ToolMode>>;
@@ -9,7 +9,7 @@ type ToolModeCtx = {
 const ToolModeContext = createContext<ToolModeCtx | undefined>(undefined);
 
 export function ToolModeProvider({ children }: { children: ReactNode }) {
-  const [mode, setMode] = useState<ToolMode>("idle");
+  const [mode, setMode] = useState<ToolMode>("addSource");
   return (
     <ToolModeContext.Provider value={{ mode, setMode }}>
       {children}

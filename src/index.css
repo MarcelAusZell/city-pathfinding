@@ -87,11 +87,9 @@
 #nodes circle.is-source {
   r: 8;
   fill: red;
-  fill-opacity: 0.9;
 }
 
 #nodes circle.is-sink {
   r: 8;
-  fill: green;
-  fill-opacity: 0.9;
+  fill: rgb(82, 189, 0);
 }

@@ -20,13 +20,10 @@ export default function GraphVisualizer() {
   const [sourceNode, setSourceNode] = useState<string | undefined>(undefined);
   const [sinkNode, setSinkNode] = useState<string | undefined>(undefined);
 
-
   const { map } = useMap();
-  const { mode } = useToolMode();
+  const { mode, setMode } = useToolMode();
   const modeRef = useRef(mode);
   useEffect(() => { modeRef.current = mode; }, [mode]);
-
-
 
   // ---------- helpers ----------
   const getLayers = () => {
@@ -35,6 +32,7 @@ export default function GraphVisualizer() {
       edges: svg.querySelector("#edges") as SVGGElement,
       processed: svg.querySelector("#processedEdges") as SVGGElement,
       nodes: svg.querySelector("#nodes") as SVGGElement,
+      shortestPath: svg.querySelector("#shortestPath") as SVGGElement,
     };
   };
 
@@ -47,8 +45,8 @@ export default function GraphVisualizer() {
 
   const drawGraph = (graph: any) => {
     const { edges, nodes } = graph;
-    const { edges: E, nodes: N, processed: P } = getLayers();
-    clear(E); clear(N); clear(P);
+    const { edges: E, nodes: N, processed: P, shortestPath: S } = getLayers();
+    clear(E); clear(N); clear(P); clear(S);
     nodeElsRef.current = {};
 
     // Edges
@@ -61,24 +59,21 @@ export default function GraphVisualizer() {
     for (const id in nodes) {
       const { x, y } = nodes[id];
       const el = drawNode(x, y, 3, "var(--color-neutral-content)");
-      // 5) click handler: support both modes
       el.addEventListener("click", () => {
         const currentMode = modeRef.current;
-        console.log("node click:", id, "mode:", currentMode);
 
         if (currentMode === "addSource") {
           resetDijkstraStates(graph);
           setSourceNode(id);
           Object.values(nodeElsRef.current).forEach(n => n.classList.remove("is-source"));
           el.classList.add("is-source");
+          setMode("addSink")
         } else if (currentMode === "addSink") {
           setSinkNode(id);
           Object.values(nodeElsRef.current).forEach(n => n.classList.remove("is-sink"));
           el.classList.add("is-sink");
         }
       });
-
-
       nodeElsRef.current[id] = el;
       N.appendChild(el);
     }
@@ -90,11 +85,14 @@ export default function GraphVisualizer() {
     distancesRef.current = {};
     predecessorsRef.current = {};
     pqRef.current = {};
-    const { processed } = getLayers();
+    const { processed, shortestPath } = getLayers();
     processed.replaceChildren();
+    shortestPath.replaceChildren();
     Object.values(nodeElsRef.current).forEach(el =>
       el.setAttribute("fill", "var(--color-neutral-content)")
     );
+
+
   };
 
   const drawProcessed = (graph: any, u: string) => {
@@ -107,6 +105,35 @@ export default function GraphVisualizer() {
       }
     }
   };
+
+  const drawShortestPath = (g: any, sink: string) => {
+    if (!visitedRef.current[sink]) return;
+
+    const { nodes } = g;
+    const { shortestPath: S } = getLayers();
+    S.replaceChildren();
+
+    const seen = new Set<string>();
+    let u: string | undefined = sink;
+    const maxSteps = Object.keys(g.nodes).length;
+
+    for (let steps = 0; u && u !== sourceNode && steps < maxSteps; steps++) {
+      if (seen.has(u)) break;
+      seen.add(u);
+
+      const p = predecessorsRef.current[u];
+      if (!p || p === u) break;
+
+      let { x, y } = nodes[p];
+      S.appendChild(drawEdge(nodes[p], nodes[u], "rgb(82, 189, 0)", 4));
+      S.appendChild(drawNode(x, y, 4, "rgb(82, 189, 0)"));
+      if (p == sourceNode) {
+        S.appendChild(drawNode(x, y, 8, "red"));
+      }
+      u = p;
+    }
+  };
+
 
   function normalizeGraphToCanvas(graph: any, width: number, height: number) {
     const nodes = graph.nodes;
@@ -124,6 +151,7 @@ export default function GraphVisualizer() {
     );
     return { ...graph, nodes: normNodes };
   }
+
   // ---------- helpers ----------
 
   // 1) Load & normalize map
@@ -142,6 +170,7 @@ export default function GraphVisualizer() {
     svg.querySelector("#edges")?.replaceChildren();
     svg.querySelector("#processedEdges")?.replaceChildren();
     svg.querySelector("#nodes")?.replaceChildren();
+    svg.querySelector("#shortestPath")?.replaceChildren();
 
     (async () => {
       const res = await fetch(map);
@@ -161,8 +190,8 @@ export default function GraphVisualizer() {
     if (!graph || !svgRef.current) return;
 
     drawGraph(graph);
-    stopAnimation();                
-    resetDijkstraStates(graph); 
+    stopAnimation();
+    resetDijkstraStates(graph);
     setSourceNode(undefined);
     setSinkNode(undefined);
   }, [graph]);
@@ -196,14 +225,21 @@ export default function GraphVisualizer() {
           drawProcessed(graph, u);
         }
       }
-      const pqEmpty = Object.keys(pqRef.current).length == 0;
-      const sinkReached = visitedRef.current[sinkNode];
-      const shouldContinue = !pqEmpty && !sinkReached;
-      animRef.current = shouldContinue ? requestAnimationFrame(renderChunk) : null;
+      const pqEmpty = Object.keys(pqRef.current).length === 0;
+      const sinkReached = visitedRef.current[sinkNode!];
+
+      if (!pqEmpty && !sinkReached) {
+        animRef.current = requestAnimationFrame(renderChunk);
+      } else {
+        drawShortestPath(graph, sinkNode!);
+        animRef.current = null;
+      }
+
     };
 
     stopAnimation();
     animRef.current = requestAnimationFrame(renderChunk);
+
 
     return stopAnimation;
   }, [graph, sourceNode, sinkNode]);
@@ -216,6 +252,7 @@ export default function GraphVisualizer() {
         <g id="edges" />
         <g id="processedEdges" />
         <g id="nodes" />
+        <g id="shortestPath" />
       </svg>
     </>
   );

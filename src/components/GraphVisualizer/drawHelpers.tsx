@@ -22,4 +22,3 @@ export function drawEdge(
   l.setAttribute("stroke-width", String(strokeWidth));
   return l;
 }
-
