@@ -3,6 +3,6 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
-  base: "/city-pathfinding/",
+  base: "/",
   plugins: [tailwindcss(), react()],
 });
